@@ -24,7 +24,7 @@ const heroLegs = presetById("iron-condor")!.build(100);
 function Index() {
   const { done } = useProgress();
   const pct = Math.round((done.length / LESSONS.length) * 100);
-  const next = LESSONS.find((l) => !done.includes(l.id)) ?? LESSONS[0];
+  const next = LESSONS.find((l) => !done.includes(l.id)) ?? LESSONS[0]!;
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-24">

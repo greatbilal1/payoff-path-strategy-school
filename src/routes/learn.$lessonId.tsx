@@ -118,7 +118,7 @@ function LessonPage() {
 
       {/* Lab pane */}
       <aside className="bg-muted/20 px-5 py-8 lg:h-[calc(100vh-3.5rem)] lg:overflow-y-auto lg:px-8">
-        <StrategyLab key={lesson.id} initialLegs={legs} initialMetric={lesson.lab.metric} title={lesson.lab.title} compact />
+        <StrategyLab key={lesson.id} initialLegs={legs} initialMetric={lesson.lab.metric ?? "pnl"} title={lesson.lab.title} compact />
       </aside>
     </div>
   );
