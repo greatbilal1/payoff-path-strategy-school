@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check, FlaskConical, Lightbulb } from "lucide-react";
 import { LESSONS, lessonById } from "@/lib/curriculum";
@@ -37,6 +37,7 @@ function LessonPage() {
   const prev = LESSONS[idx - 1];
   const next = LESSONS[idx + 1];
   const { done, toggle } = useProgress();
+  const navigate = useNavigate();
   const isDone = done.includes(lesson.id);
   const legs = lesson.lab.build(100);
 
@@ -47,7 +48,7 @@ function LessonPage() {
         <div className="mb-6 flex items-center justify-between gap-3">
           <select
             value={lesson.id}
-            onChange={(e) => (window.location.href = `/learn/${e.target.value}`)}
+            onChange={(e) => navigate({ to: "/learn/$lessonId", params: { lessonId: e.target.value } })}
             className="max-w-[70%] rounded-md border border-input bg-background px-2 py-1.5 text-sm"
             aria-label="Jump to lesson"
           >
