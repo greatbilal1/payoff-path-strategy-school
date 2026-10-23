@@ -1,14 +1,16 @@
-# Welcome to your Lovable project
+# Payoff Path Strategy School
+
+Create a full-fledged course from beginner to expert in options trading with guided lessons, visual payoff charts, scenario calculators, examples, and sandbox tools. Include a dual-pane learning workspace with structured lessons alongside interactive options payoff diagrams and Greeks (Delta, Gamma, Theta, Vega), as well as a standalone options simulator sandbox for custom multi-leg strategies and scenarios.
 
 This project was built with [Lovable](https://lovable.dev).
 
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/8bb8af1c-01c2-48f0-b26a-97d62bdef358).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -20,10 +22,3 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
