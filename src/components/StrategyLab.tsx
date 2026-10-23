@@ -209,7 +209,7 @@ function ScenarioGrid({ legs, entrySpot, ivShift }: { legs: Leg[]; entrySpot: nu
               <tr key={m}>
                 <td className="px-2 py-1 text-muted-foreground">{m > 0 ? "+" : ""}{m}% <span className="opacity-60">{(entrySpot * (1 + m / 100)).toFixed(0)}</span></td>
                 {days.map((d, j) => {
-                  const v = all[i * days.length + j];
+                  const v = all[i * days.length + j]!;
                   return (
                     <td key={d} className="px-2 py-1 text-right" style={{ background: `color-mix(in oklab, var(${v >= 0 ? "--profit" : "--loss"}) ${Math.round((Math.abs(v) / maxAbs) * 35)}%, transparent)` }}>
                       {Math.round(v).toLocaleString()}

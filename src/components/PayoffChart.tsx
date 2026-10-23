@@ -52,7 +52,7 @@ export function PayoffChart({
 
   const x = (S: number) => PAD.l + ((S - lo) / (hi - lo)) * (W - PAD.l - PAD.r);
   const y = (v: number) => PAD.t + ((yMax - v) / (yMax - yMin)) * (H - PAD.t - PAD.b);
-  const path = (vals: number[]) => vals.map((v, i) => `${i ? "L" : "M"}${x(data.xs[i]).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const path = (vals: number[]) => vals.map((v, i) => `${i ? "L" : "M"}${x(data.xs[i]!).toFixed(1)},${y(v).toFixed(1)}`).join("");
   const y0 = y(0);
 
   const fmtY = (v: number) =>
@@ -117,17 +117,17 @@ export function PayoffChart({
         )}
         {hover !== null && (
           <g>
-            <line x1={x(data.xs[hover])} x2={x(data.xs[hover])} y1={PAD.t} y2={H - PAD.b} stroke="var(--foreground)" strokeOpacity="0.5" strokeDasharray="3 3" />
-            <circle cx={x(data.xs[hover])} cy={y(data.now[hover])} r="3.5" fill="var(--primary)" />
-            {data.expiry && <circle cx={x(data.xs[hover])} cy={y(data.expiry[hover])} r="3.5" fill="var(--foreground)" />}
+            <line x1={x(data.xs[hover]!)} x2={x(data.xs[hover]!)} y1={PAD.t} y2={H - PAD.b} stroke="var(--foreground)" strokeOpacity="0.5" strokeDasharray="3 3" />
+            <circle cx={x(data.xs[hover]!)} cy={y(data.now[hover]!)} r="3.5" fill="var(--primary)" />
+            {data.expiry && <circle cx={x(data.xs[hover]!)} cy={y(data.expiry[hover]!)} r="3.5" fill="var(--foreground)" />}
           </g>
         )}
       </svg>
       {hover !== null && (
         <div className="pointer-events-none absolute right-2 top-2 rounded-md border border-border bg-popover/95 px-3 py-2 font-mono text-xs shadow-sm">
-          <div className="text-muted-foreground">Price {data.xs[hover].toFixed(2)}</div>
-          <div className="text-primary">Now {fmtY(data.now[hover])}</div>
-          {data.expiry && <div>Expiry {fmtY(data.expiry[hover])}</div>}
+          <div className="text-muted-foreground">Price {data.xs[hover]!.toFixed(2)}</div>
+          <div className="text-primary">Now {fmtY(data.now[hover]!)}</div>
+          {data.expiry && <div>Expiry {fmtY(data.expiry[hover]!)}</div>}
         </div>
       )}
       <div className="mt-1 flex flex-wrap gap-4 px-2 text-xs text-muted-foreground">
