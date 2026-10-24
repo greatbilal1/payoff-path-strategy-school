@@ -6,10 +6,12 @@ import {
   entryPrice,
   firstExpiry,
   fmt$,
+  legGreeks,
   leg as mkLeg,
   netCost,
   positionGreeks,
   positionPnL,
+  RATE,
   type Leg,
 } from "@/lib/options";
 import { cn } from "@/lib/utils";
@@ -54,23 +56,32 @@ export function StrategyLab({
   const [move, setMove] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [ivShift, setIvShift] = useState(0);
+  const [interestRate, setInterestRate] = useState(RATE);
   const [metric, setMetric] = useState<Metric>(initialMetric);
 
   const exp = firstExpiry(legs);
   const spot = entrySpot * (1 + move / 100);
   const el = Math.min(elapsed, exp);
-  const g = useMemo(() => positionGreeks(legs, spot, Math.min(el, exp - 0.01), ivShift), [legs, spot, el, exp, ivShift]);
-  const pnl = positionPnL(legs, entrySpot, spot, Math.min(el, exp - 0.01), ivShift);
-  const stats = useMemo(() => analyze(legs, entrySpot), [legs, entrySpot]);
-  const cost = netCost(legs, entrySpot);
+  const g = useMemo(() => positionGreeks(legs, spot, el, ivShift, interestRate), [legs, spot, el, ivShift, interestRate]);
+  const pnl = positionPnL(legs, entrySpot, spot, el, ivShift, interestRate);
+  const stats = useMemo(() => analyze(legs, entrySpot, interestRate), [legs, entrySpot, interestRate]);
+  const cost = netCost(legs, entrySpot, interestRate);
+  const longShares = legs.filter((l) => l.type === "stock" && l.side === 1).reduce((sum, l) => sum + l.qty, 0);
+  const shortCallShares = legs.filter((l) => l.type === "call" && l.side === -1).reduce((sum, l) => sum + l.qty * 100, 0);
 
   const update = (id: string, p: Partial<Leg>) => setLegs((ls) => ls.map((l) => (l.id === id ? { ...l, ...p } : l)));
+  const clearEntryPremium = (id: string) => setLegs((ls) => ls.map((l) => {
+    if (l.id !== id) return l;
+    const { entryPremium: _entryPremium, ...withoutEntryPremium } = l;
+    return withoutEntryPremium;
+  }));
   const reset = () => {
     setLegs(initialLegs);
     setEntrySpot(initialSpot);
     setMove(0);
     setElapsed(0);
     setIvShift(0);
+    setInterestRate(RATE);
   };
 
   return (
@@ -90,14 +101,14 @@ export function StrategyLab({
       </div>
 
       <div className="rounded-xl border border-border bg-card p-2">
-        <PayoffChart legs={legs} entrySpot={entrySpot} spot={spot} elapsed={el} ivShift={ivShift} metric={metric} />
+        <PayoffChart legs={legs} entrySpot={entrySpot} spot={spot} elapsed={el} ivShift={ivShift} interestRate={interestRate} metric={metric} />
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="P&L at scenario" value={fmt$(pnl)} tone={pnl >= 0 ? "profit" : "loss"} />
         <Stat label={cost >= 0 ? "Net debit" : "Net credit"} value={fmt$(Math.abs(cost))} />
-        <Stat label="Max profit" value={fmt$(stats.maxProfit)} tone="profit" />
-        <Stat label="Max loss" value={fmt$(stats.maxLoss)} tone="loss" />
+        <Stat label={stats.isExact ? "Max profit" : "Max profit*"} value={fmt$(stats.maxProfit)} tone="profit" />
+        <Stat label={stats.isExact ? "Max loss" : "Max loss*"} value={fmt$(stats.maxLoss)} tone="loss" />
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -107,24 +118,46 @@ export function StrategyLab({
         <Stat label="Vega ν" value={g.vega.toFixed(2)} hint="$ per 1 vol pt" />
       </div>
 
-      <div className="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-3">
+      <div className="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-4">
         <Slider label="Underlying move" value={move} min={-40} max={40} step={0.5} onChange={setMove} display={`${move > 0 ? "+" : ""}${move}% → ${spot.toFixed(2)}`} />
         <Slider label="Days passed" value={el} min={0} max={exp} step={1} onChange={setElapsed} display={`${el} / ${exp}d`} />
         <Slider label="IV change" value={ivShift * 100} min={-25} max={25} step={1} onChange={(v) => setIvShift(v / 100)} display={`${ivShift > 0 ? "+" : ""}${Math.round(ivShift * 100)} pts`} />
+        <label className="block">
+          <div className="mb-1 flex justify-between text-xs">
+            <span className="text-muted-foreground">Risk-free rate</span>
+            <span className="font-mono text-foreground">Annual %</span>
+          </div>
+          <input
+            aria-label="Annual risk-free rate percentage"
+            type="number"
+            value={interestRate * 100}
+            step="0.01"
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              if (Number.isFinite(value)) setInterestRate(value / 100);
+            }}
+            className="w-full rounded border border-input bg-background px-2 py-1.5 font-mono text-sm text-foreground"
+          />
+        </label>
       </div>
+      <p className="text-xs text-muted-foreground">Blank entry-fill fields use theoretical Black-Scholes values. The IV control applies the same shift to every option; it does not model skew or term-structure changes.</p>
 
       {stats.breakevens.length > 0 && (
         <p className="text-xs text-muted-foreground">
           Breakeven{stats.breakevens.length > 1 ? "s" : ""} at expiration: <span className="font-mono text-foreground">{stats.breakevens.map((b) => b.toFixed(2)).join(" · ")}</span>
         </p>
       )}
+      {!stats.isExact && <p className="text-xs text-muted-foreground">*Mixed expirations: profit, loss, and breakeven depend on the remaining option’s price and IV at the first expiry.</p>}
+      {shortCallShares > 0 && <p className="text-xs text-muted-foreground">
+        Long-stock coverage: {Math.min(longShares, shortCallShares).toLocaleString()} of {shortCallShares.toLocaleString()} short-call shares. Option legs can separately provide defined-risk protection; check the payoff chart and max-loss result.
+      </p>}
 
       <div className="rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
           <span className="text-sm font-semibold">Legs</span>
           <div className="flex gap-2">
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              Entry price
+              Entry spot
               <input type="number" value={entrySpot} min={1} onChange={(e) => setEntrySpot(Math.max(1, +e.target.value || 1))} className="w-20 rounded border border-input bg-background px-2 py-1 font-mono text-xs text-foreground" />
             </label>
             <button onClick={() => setLegs((l) => [...l, mkLeg("call", 1, Math.round(entrySpot))])} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"><Plus className="h-3 w-3" />Leg</button>
@@ -137,7 +170,7 @@ export function StrategyLab({
               <tr className="text-left">
                 <th className="px-3 py-2 font-medium">Side</th><th className="px-2 font-medium">Type</th><th className="px-2 font-medium">Qty</th>
                 <th className="px-2 font-medium">Strike</th><th className="px-2 font-medium">DTE</th><th className="px-2 font-medium">IV %</th>
-                <th className="px-2 font-medium">Price</th><th />
+                <th className="px-2 font-medium">Model $/sh</th><th className="px-2 font-medium">Entry $/sh</th><th />
               </tr>
             </thead>
             <tbody>
@@ -157,7 +190,11 @@ export function StrategyLab({
                   <td className="px-2">{l.type === "stock" ? <span className="text-muted-foreground">—</span> : <Num v={l.strike} on={(v) => update(l.id, { strike: Math.max(1, v) })} />}</td>
                   <td className="px-2">{l.type === "stock" ? <span className="text-muted-foreground">—</span> : <Num v={l.dte} on={(v) => update(l.id, { dte: Math.max(1, v) })} />}</td>
                   <td className="px-2">{l.type === "stock" ? <span className="text-muted-foreground">—</span> : <Num v={Math.round(l.iv * 100)} on={(v) => update(l.id, { iv: Math.max(1, v) / 100 })} />}</td>
-                  <td className="px-2 font-mono">{entryPrice(l, entrySpot).toFixed(2)}</td>
+                  <td className="px-2 font-mono">{legGreeks(l, entrySpot, 0, 0, interestRate).price.toFixed(2)}</td>
+                  <td className="px-2"><input aria-label="Entry fill per share" type="number" min={0} step="0.01" value={l.entryPremium ?? ""} placeholder={entryPrice(l, entrySpot, interestRate).toFixed(2)} onChange={(e) => {
+                    if (e.target.value === "") clearEntryPremium(l.id);
+                    else update(l.id, { entryPremium: Math.max(0, +e.target.value || 0) });
+                  }} className="w-16 rounded border border-input bg-background px-1.5 py-1 font-mono" /></td>
                   <td className="px-2 text-right">
                     <button aria-label="Remove leg" onClick={() => setLegs((ls) => ls.filter((x) => x.id !== l.id))} className="rounded p-1 text-muted-foreground hover:text-loss" disabled={legs.length === 1}><Trash2 className="h-3.5 w-3.5" /></button>
                   </td>
@@ -168,7 +205,7 @@ export function StrategyLab({
         </div>
       </div>
 
-      {!compact && <ScenarioGrid legs={legs} entrySpot={entrySpot} ivShift={ivShift} />}
+      {!compact && <ScenarioGrid legs={legs} entrySpot={entrySpot} ivShift={ivShift} interestRate={interestRate} />}
     </div>
   );
 }
@@ -187,11 +224,12 @@ function Stat({ label, value, tone, hint }: { label: string; value: string; tone
   );
 }
 
-function ScenarioGrid({ legs, entrySpot, ivShift }: { legs: Leg[]; entrySpot: number; ivShift: number }) {
+function ScenarioGrid({ legs, entrySpot, ivShift, interestRate }: { legs: Leg[]; entrySpot: number; ivShift: number; interestRate: number }) {
   const exp = firstExpiry(legs);
+  const mixedExpiries = legs.some((l) => l.type !== "stock" && l.dte !== exp);
   const days = [0, Math.round(exp * 0.25), Math.round(exp * 0.5), Math.round(exp * 0.75), exp];
   const moves = [-20, -15, -10, -5, 0, 5, 10, 15, 20];
-  const all = moves.flatMap((m) => days.map((d) => positionPnL(legs, entrySpot, entrySpot * (1 + m / 100), Math.min(d, exp - 0.001), ivShift)));
+  const all = moves.flatMap((m) => days.map((d) => positionPnL(legs, entrySpot, entrySpot * (1 + m / 100), d, ivShift, interestRate)));
   const maxAbs = Math.max(1, ...all.map(Math.abs));
   return (
     <div className="rounded-xl border border-border bg-card">
@@ -201,7 +239,7 @@ function ScenarioGrid({ legs, entrySpot, ivShift }: { legs: Leg[]; entrySpot: nu
           <thead>
             <tr className="text-muted-foreground">
               <th className="px-2 py-1 text-left font-medium">Move \ Day</th>
-              {days.map((d) => <th key={d} className="px-2 py-1 text-right font-medium">{d === exp ? `Exp (${d})` : `D${d}`}</th>)}
+              {days.map((d) => <th key={d} className="px-2 py-1 text-right font-medium">{d === exp ? `${mixedExpiries ? "First exp" : "Exp"} (${d})` : `D${d}`}</th>)}
             </tr>
           </thead>
           <tbody>

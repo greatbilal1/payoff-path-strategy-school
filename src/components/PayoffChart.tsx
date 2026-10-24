@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { analyze, firstExpiry, positionGreeks, positionPnL, type Leg } from "@/lib/options";
+import { useId, useMemo, useState } from "react";
+import { analyze, firstExpiry, hasMixedExpiries, positionGreeks, positionPnL, type Leg } from "@/lib/options";
 
 export type Metric = "pnl" | "delta" | "gamma" | "theta" | "vega";
 
@@ -13,6 +13,7 @@ export function PayoffChart({
   spot,
   elapsed,
   ivShift,
+  interestRate,
   metric,
 }: {
   legs: Leg[];
@@ -20,24 +21,30 @@ export function PayoffChart({
   spot: number;
   elapsed: number;
   ivShift: number;
+  interestRate: number;
   metric: Metric;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  const clipId = useId().replace(/:/g, "");
   const exp = firstExpiry(legs);
-  const lo = entrySpot * 0.6;
-  const hi = entrySpot * 1.4;
+  const mixedExpiries = hasMixedExpiries(legs);
+  const analysis = metric === "pnl" ? analyze(legs, entrySpot, interestRate) : null;
+  const strikes = [...new Set(legs.filter((l) => l.type !== "stock").map((l) => l.strike))];
+  const relevantPrices = [...strikes, ...(analysis?.isExact ? analysis.breakevens : [])];
+  const lo = Math.max(0.01, Math.min(entrySpot * 0.6, ...relevantPrices.map((price) => price * 0.8)));
+  const hi = Math.max(entrySpot * 1.6, ...relevantPrices.map((price) => price * 1.2));
   const N = 160;
 
   const data = useMemo(() => {
     const xs = Array.from({ length: N + 1 }, (_, i) => lo + ((hi - lo) * i) / N);
     const val = (S: number, t: number) =>
-      metric === "pnl" ? positionPnL(legs, entrySpot, S, t, ivShift) : positionGreeks(legs, S, t, ivShift)[metric];
+      metric === "pnl" ? positionPnL(legs, entrySpot, S, t, ivShift, interestRate) : positionGreeks(legs, S, t, ivShift, interestRate)[metric];
     return {
       xs,
-      expiry: metric === "pnl" ? xs.map((S) => positionPnL(legs, entrySpot, S, exp, 0)) : null,
-      now: xs.map((S) => val(S, Math.min(elapsed, exp - 0.01))),
+      expiry: metric === "pnl" ? xs.map((S) => positionPnL(legs, entrySpot, S, exp, 0, interestRate)) : null,
+      now: xs.map((S) => val(S, elapsed)),
     };
-  }, [legs, entrySpot, elapsed, ivShift, metric, exp, lo, hi]);
+  }, [legs, entrySpot, elapsed, ivShift, interestRate, metric, exp, lo, hi]);
 
   const all = [...data.now, ...(data.expiry ?? [])];
   let yMin = Math.min(0, ...all);
@@ -60,8 +67,7 @@ export function PayoffChart({
 
   const yTicks = Array.from({ length: 5 }, (_, i) => yMin + ((yMax - yMin) * i) / 4);
   const xTicks = Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * i) / 4);
-  const be = metric === "pnl" ? analyze(legs, entrySpot).breakevens.filter((b) => b > lo && b < hi) : [];
-  const strikes = [...new Set(legs.filter((l) => l.type !== "stock").map((l) => l.strike))];
+  const be = analysis?.isExact ? analysis.breakevens.filter((b) => b > lo && b < hi) : [];
 
   const area = data.expiry ? `${path(data.expiry)}L${x(hi)},${y0}L${x(lo)},${y0}Z` : "";
 
@@ -79,8 +85,8 @@ export function PayoffChart({
         }}
       >
         <defs>
-          <clipPath id="above"><rect x="0" y="0" width={W} height={Math.max(0, y0)} /></clipPath>
-          <clipPath id="below"><rect x="0" y={y0} width={W} height={Math.max(0, H - y0)} /></clipPath>
+          <clipPath id={`${clipId}-above`}><rect x="0" y="0" width={W} height={Math.max(0, y0)} /></clipPath>
+          <clipPath id={`${clipId}-below`}><rect x="0" y={y0} width={W} height={Math.max(0, H - y0)} /></clipPath>
         </defs>
         {yTicks.map((t, i) => (
           <g key={i}>
@@ -99,8 +105,8 @@ export function PayoffChart({
         ))}
         {area && (
           <>
-            <path d={area} fill="var(--profit)" fillOpacity="0.14" clipPath="url(#above)" />
-            <path d={area} fill="var(--loss)" fillOpacity="0.14" clipPath="url(#below)" />
+            <path d={area} fill="var(--profit)" fillOpacity="0.14" clipPath={`url(#${clipId}-above)`} />
+            <path d={area} fill="var(--loss)" fillOpacity="0.14" clipPath={`url(#${clipId}-below)`} />
           </>
         )}
         <line x1={PAD.l} x2={W - PAD.r} y1={y0} y2={y0} stroke="var(--foreground)" strokeOpacity="0.4" />
@@ -127,11 +133,11 @@ export function PayoffChart({
         <div className="pointer-events-none absolute right-2 top-2 rounded-md border border-border bg-popover/95 px-3 py-2 font-mono text-xs shadow-sm">
           <div className="text-muted-foreground">Price {data.xs[hover]!.toFixed(2)}</div>
           <div className="text-primary">Now {fmtY(data.now[hover]!)}</div>
-          {data.expiry && <div>Expiry {fmtY(data.expiry[hover]!)}</div>}
+          {data.expiry && <div>{mixedExpiries ? "First expiry value" : "Expiry"} {fmtY(data.expiry[hover]!)}</div>}
         </div>
       )}
       <div className="mt-1 flex flex-wrap gap-4 px-2 text-xs text-muted-foreground">
-        {metric === "pnl" && <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-foreground" />At expiration (day {exp})</span>}
+        {metric === "pnl" && <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-foreground" />{mixedExpiries ? `At first expiry, marked to model value (day ${exp})` : `At expiration (day ${exp})`}</span>}
         <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-primary" />{metric === "pnl" ? `Today (day ${elapsed})` : `${metric} on day ${elapsed}`}</span>
         <span className="flex items-center gap-1.5"><span className="h-3 w-0.5 bg-primary" />Spot {spot.toFixed(2)}</span>
       </div>

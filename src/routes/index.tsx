@@ -87,7 +87,7 @@ function Index() {
           </section>
         );
       })}
-      <p className="border-t border-border pt-8 text-xs text-muted-foreground">Educational content only — not financial advice. Prices are modeled with Black-Scholes (European, no dividends, 4% rate).</p>
+      <p className="border-t border-border pt-8 text-xs text-muted-foreground">Educational content only — not financial advice. Prices use a simplified Black-Scholes model: European exercise, no dividends, a configurable interest rate, and theoretical entry fills. Listed US equity options are generally American-style and can be exercised early.</p>
     </div>
   );
 }

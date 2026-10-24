@@ -8,6 +8,7 @@ export interface Leg {
   strike: number;
   dte: number; // days to expiration at entry
   iv: number; // implied volatility, decimal (0.3 = 30%)
+  entryPremium?: number; // optional actual entry fill, per share
 }
 
 export interface Greeks {
@@ -77,28 +78,40 @@ export function blackScholes(
 const mult = (l: Leg) => (l.type === "stock" ? 1 : MULT);
 
 /** Value + greeks of one leg (per share) at a given underlying price, time elapsed and IV shift. */
-export function legGreeks(l: Leg, S: number, elapsed: number, ivShift = 0): Greeks {
+export function legGreeks(l: Leg, S: number, elapsed: number, ivShift = 0, rate = RATE): Greeks {
   if (l.type === "stock") return { price: S, delta: 1, gamma: 0, theta: 0, vega: 0 };
   const T = Math.max(0, l.dte - elapsed) / 365;
-  return blackScholes(l.type, S, l.strike, T, RATE, Math.max(0.01, l.iv + ivShift));
+  return blackScholes(l.type, S, l.strike, T, rate, Math.max(0.01, l.iv + ivShift));
 }
 
-/** Entry cost per share: options priced with Black-Scholes at entry spot; stock at entry spot. */
-export function entryPrice(l: Leg, entrySpot: number) {
-  return legGreeks(l, entrySpot, 0).price;
+/** Entry cost per share: an actual fill when supplied, otherwise the model price at entry. */
+export function entryPrice(l: Leg, entrySpot: number, rate = RATE) {
+  return l.entryPremium ?? legGreeks(l, entrySpot, 0, 0, rate).price;
 }
 
-export function positionPnL(legs: Leg[], entrySpot: number, S: number, elapsed: number, ivShift = 0) {
+export function positionPnL(legs: Leg[], entrySpot: number, S: number, elapsed: number, ivShift = 0, rate = RATE) {
   return legs.reduce((acc, l) => {
-    const now = legGreeks(l, S, elapsed, ivShift).price;
-    return acc + l.side * l.qty * mult(l) * (now - entryPrice(l, entrySpot));
+    const now = legGreeks(l, S, elapsed, ivShift, rate).price;
+    return acc + l.side * l.qty * mult(l) * (now - entryPrice(l, entrySpot, rate));
   }, 0);
 }
 
-export function positionGreeks(legs: Leg[], S: number, elapsed: number, ivShift = 0): Greeks {
+/** P&L after every option in the position has settled. Only valid for a single option expiry. */
+export function expirationPnL(legs: Leg[], entrySpot: number, S: number, rate = RATE) {
+  return legs.reduce((acc, l) => {
+    const value = l.type === "stock"
+      ? S
+      : l.type === "call"
+        ? Math.max(0, S - l.strike)
+        : Math.max(0, l.strike - S);
+    return acc + l.side * l.qty * mult(l) * (value - entryPrice(l, entrySpot, rate));
+  }, 0);
+}
+
+export function positionGreeks(legs: Leg[], S: number, elapsed: number, ivShift = 0, rate = RATE): Greeks {
   const g = { price: 0, delta: 0, gamma: 0, theta: 0, vega: 0 };
   for (const l of legs) {
-    const lg = legGreeks(l, S, elapsed, ivShift);
+    const lg = legGreeks(l, S, elapsed, ivShift, rate);
     const m = l.side * l.qty * mult(l);
     g.price += m * lg.price;
     g.delta += m * lg.delta;
@@ -110,8 +123,8 @@ export function positionGreeks(legs: Leg[], S: number, elapsed: number, ivShift 
 }
 
 /** Net debit (+) or credit (-) to open the position. */
-export function netCost(legs: Leg[], entrySpot: number) {
-  return legs.reduce((a, l) => a + l.side * l.qty * mult(l) * entryPrice(l, entrySpot), 0);
+export function netCost(legs: Leg[], entrySpot: number, rate = RATE) {
+  return legs.reduce((a, l) => a + l.side * l.qty * mult(l) * entryPrice(l, entrySpot, rate), 0);
 }
 
 /** Days until the first leg expires (the "expiration" view). */
@@ -120,30 +133,47 @@ export function firstExpiry(legs: Leg[]) {
   return opts.length ? Math.min(...opts.map((l) => l.dte)) : 30;
 }
 
-export function analyze(legs: Leg[], entrySpot: number) {
-  const exp = firstExpiry(legs);
-  const lo = 0.01;
-  const hi = entrySpot * 4;
-  const n = 800;
-  let max = -Infinity;
-  let min = Infinity;
-  const be: number[] = [];
-  let prev = positionPnL(legs, entrySpot, lo, exp);
-  for (let i = 1; i <= n; i++) {
-    const S = lo + ((hi - lo) * i) / n;
-    const v = positionPnL(legs, entrySpot, S, exp);
-    max = Math.max(max, v);
-    min = Math.min(min, v);
-    if ((prev < 0 && v >= 0) || (prev > 0 && v <= 0)) be.push(S);
-    prev = v;
+export function hasMixedExpiries(legs: Leg[]) {
+  const expiries = new Set(legs.filter((l) => l.type !== "stock").map((l) => l.dte));
+  return expiries.size > 1;
+}
+
+function dedupeSorted(values: number[], tolerance = 1e-7) {
+  return values.sort((a, b) => a - b).filter((value, i) => i === 0 || Math.abs(value - values[i - 1]!) > tolerance);
+}
+
+export function analyze(legs: Leg[], entrySpot: number, rate = RATE) {
+  if (hasMixedExpiries(legs)) {
+    return { isExact: false, maxProfit: null, maxLoss: null, breakevens: [] as number[] };
   }
-  const slopeHi = positionPnL(legs, entrySpot, hi, exp) - positionPnL(legs, entrySpot, hi * 0.99, exp);
-  const unlimitedUp = slopeHi > 1;
-  const unlimitedDown = slopeHi < -1;
+
+  const strikes = dedupeSorted(legs.filter((l) => l.type !== "stock").map((l) => l.strike));
+  const points = [0, ...strikes];
+  const values = points.map((S) => expirationPnL(legs, entrySpot, S, rate));
+  const roots: number[] = [];
+
+  for (let i = 0; i < points.length; i++) {
+    const start = points[i]!;
+    const end = points[i + 1] ?? Infinity;
+    const value = values[i]!;
+    const probe = Number.isFinite(end) ? (start + end) / 2 : start + 1;
+    const slope = expirationPnL(legs, entrySpot, probe, rate) - expirationPnL(legs, entrySpot, start, rate);
+    if (Math.abs(value) < 1e-7) roots.push(start);
+    if (Math.abs(slope) > 1e-10) {
+      const root = start - value / slope;
+      if (root > start + 1e-7 && root <= end + 1e-7) roots.push(root);
+    }
+  }
+
+  const upperProbe = (strikes.at(-1) ?? 0) + 1;
+  const upperSlope = expirationPnL(legs, entrySpot, upperProbe, rate) - expirationPnL(legs, entrySpot, upperProbe - 1, rate);
+  const max = Math.max(...values);
+  const min = Math.min(...values);
   return {
-    maxProfit: unlimitedUp ? Infinity : max,
-    maxLoss: unlimitedDown ? -Infinity : Math.min(min, positionPnL(legs, entrySpot, lo, exp)),
-    breakevens: be,
+    isExact: true,
+    maxProfit: upperSlope > 1e-10 ? Infinity : max,
+    maxLoss: upperSlope < -1e-10 ? -Infinity : min,
+    breakevens: dedupeSorted(roots),
   };
 }
 
@@ -186,5 +216,5 @@ export const PRESETS: Preset[] = [
 
 export const presetById = (id: string) => PRESETS.find((p) => p.id === id);
 
-export const fmt$ = (v: number) =>
-  !isFinite(v) ? (v > 0 ? "Unlimited" : "-Unlimited") : `${v < 0 ? "-" : ""}$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+export const fmt$ = (v: number | null) =>
+  v === null ? "—" : !isFinite(v) ? (v > 0 ? "Unlimited" : "-Unlimited") : `${v < 0 ? "-" : ""}$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;

@@ -31,7 +31,7 @@ export const LESSONS: Lesson[] = [
     lab: { title: "Long 100 Call", build: P("long-call") },
     sections: [
       { h: "A contract on a price", p: [
-        "An option is a contract that gives its buyer the right — but not the obligation — to buy or sell an underlying asset at a fixed price (the strike) on or before a set date (the expiration).",
+        "An option is a contract that gives its buyer the right — but not the obligation — to buy or sell an underlying asset at a fixed price (the strike) by a set date (the expiration). Many US equity options can be exercised early; the lab uses a European-style pricing model for simplicity.",
         "A call gives the right to buy. A put gives the right to sell. The buyer pays a premium for that right; the seller collects the premium and takes on the obligation.",
       ]},
       { h: "Contract size", p: [
@@ -71,7 +71,7 @@ export const LESSONS: Lesson[] = [
       "Extrinsic = 11.40 − 10.00 = $1.40 — this part melts away by expiration.",
     ]},
     tryIt: ["Change the strike in the leg table to 90 then 110 and compare the 'Price' column.", "Push 'Days passed' toward expiry and notice the dashed curve losing its rounded shape."],
-    takeaways: ["Only ITM options have intrinsic value.", "ATM options carry the most time value.", "Time value always reaches zero at expiration."],
+    takeaways: ["Only ITM options have intrinsic value.", "ATM options carry the most time value.", "Extrinsic value reaches zero at expiration; intrinsic value can remain."],
     quiz: { q: "Stock is $50. A 55-strike put costs $6. How much is extrinsic value?", options: ["$6", "$5", "$1", "$0"], answer: 2, explain: "Intrinsic = 55 − 50 = $5, so extrinsic = 6 − 5 = $1." },
   },
   {
@@ -94,7 +94,7 @@ export const LESSONS: Lesson[] = [
       "Credit received: $120.", "Breakeven: 95 − 1.20 = $93.80.", "Max loss: if stock goes to $0 → (95 − 1.20) × 100 = $9,380.",
     ]},
     tryIt: ["Hover the chart to read exact P&L at any price.", "Flip the leg from Sell to Buy and see the diagram reflect across the zero line."],
-    takeaways: ["Strikes are the 'kinks' in the expiration line.", "Breakeven = where P&L crosses zero.", "Short options trade unlimited/large risk for high probability."],
+    takeaways: ["Strikes are the 'kinks' in the expiration line.", "Breakeven = where P&L crosses zero.", "A short option’s risk depends on whether the position has defined protection."],
     quiz: { q: "On a payoff diagram, where does the expiration line change slope?", options: ["At breakevens", "At each strike", "At the current spot price", "Nowhere — it's a straight line"], answer: 1, explain: "Option payoffs are piecewise linear with kinks exactly at the strike prices." },
   },
   {
@@ -106,7 +106,7 @@ export const LESSONS: Lesson[] = [
     lab: { title: "Covered Call", build: P("covered-call") },
     sections: [
       { h: "Covered call", p: [
-        "Own 100 shares, sell 1 OTM call. You collect premium today in exchange for capping your upside at the strike. The risk profile is nearly identical to a short put at the same strike.",
+        "Own 100 shares, sell 1 OTM call. You collect premium today in exchange for capping your upside at the strike. At the same strike and expiry, its expiration payoff is closely related to a cash-secured short put once financing and dividends are accounted for.",
       ]},
       { h: "Protective put", p: [
         "Own 100 shares, buy 1 put. The put acts as insurance: below the strike your losses stop. The cost is the premium, which drags on returns if nothing happens.",
@@ -117,8 +117,8 @@ export const LESSONS: Lesson[] = [
       "Sell the 105 call for ~$1.50 → +$150 income.", "If XYZ ≤ 105 at expiration: keep shares + $150.", "If XYZ > 105: shares called away at 105 → max profit $500 + $150 = $650.",
     ]},
     tryIt: ["Change the call leg to a Buy Put at 95 to build a protective put.", "Add a third leg to create a collar."],
-    takeaways: ["Covered call = income, capped upside.", "Protective put = insurance, defined downside.", "Covered call ≈ short put (put-call parity)."],
-    quiz: { q: "A covered call's risk profile most closely resembles…", options: ["A long call", "A short put", "A long straddle", "A long put"], answer: 1, explain: "Long stock + short call is synthetically equivalent to a short put at the same strike." },
+    takeaways: ["Covered call = income, capped upside.", "Protective put = insurance, defined downside.", "Covered calls and cash-secured puts have related payoffs, with financing and dividend differences."],
+    quiz: { q: "With the same strike and expiry, a covered call's expiration payoff most closely resembles…", options: ["A long call", "A cash-secured short put", "A long straddle", "A long put"], answer: 1, explain: "Long stock plus a short call and a cash-secured short put have closely related expiration payoffs once the cash financing and any dividends are included." },
   },
   // ───────────── INTERMEDIATE ─────────────
   {
@@ -131,7 +131,7 @@ export const LESSONS: Lesson[] = [
     sections: [
       { h: "Delta (Δ)", p: [
         "Delta is how much the option price changes for a $1 move in the underlying. Calls range 0 → 1, puts 0 → −1 (per share). The lab shows position delta in dollars per $1 move (already × 100).",
-        "Delta is also a rough proxy for the probability of finishing ITM: a 0.30-delta call has about a 30% chance.",
+        "Under the pricing model, delta can be a rough risk-neutral proxy for finishing ITM. It is not a real-world probability forecast: rates, dividends, skew, and expected returns all matter.",
       ]},
       { h: "Gamma (Γ)", p: [
         "Gamma is the rate of change of delta. It is highest for ATM options close to expiration. Long options are long gamma (delta moves in your favor); short options are short gamma (delta moves against you).",
@@ -157,7 +157,7 @@ export const LESSONS: Lesson[] = [
       ]},
       { h: "Vega (ν)", p: [
         "Vega is the change in option price per 1-point change in implied volatility. Long options are long vega: they gain when IV rises. Longer-dated options have more vega.",
-        "The gamma–theta trade-off is fundamental: you pay theta to own gamma, and you're paid theta to be short gamma.",
+        "The gamma–theta trade-off is a common pattern: long options often pay theta to own gamma, while short options often earn theta while being short gamma. Rates, dividends, vega, and portfolio construction can change the result.",
       ]},
     ],
     example: { title: "Long 100 straddle, 30 DTE", lines: [
@@ -231,8 +231,8 @@ export const LESSONS: Lesson[] = [
         "Buy 1 lower, sell 2 middle, buy 1 upper. Cheap, with a sharp profit peak at the middle strike — a precise 'pin' bet. Its P&L before expiry is muted; most gains appear in the final days.",
       ]},
     ],
-    example: { title: "IC 85/92/108/115 on XYZ $100", lines: [
-      "Credit ≈ $1.40 → $140; wings 7 wide → max loss ≈ $560.", "Profit zone ≈ $90.60 – $109.40 at expiration.",
+    example: { title: "IC 85/90/110/115 on XYZ $100", lines: [
+      "The lab preset uses 85/90/110/115: both wings are $5 wide.", "Max profit is the credit received; max loss per side is $500 minus that credit. Breakevens depend on the actual entry credit.",
     ]},
     tryIt: ["Switch to Θ — the condor has positive theta across the range.", "Slide days passed: P&L in the middle only grows late."],
     takeaways: ["Short vol, defined risk.", "Positive theta, negative gamma.", "Butterflies = cheap, precise targets."],
@@ -247,7 +247,7 @@ export const LESSONS: Lesson[] = [
     lab: { title: "Call Calendar (30/60 DTE)", build: P("calendar"), metric: "vega" },
     sections: [
       { h: "Calendar spread", p: [
-        "Sell a near-term option and buy a longer-dated one at the same strike. The front decays faster, so you profit if the stock sits near the strike at front expiry. The 'expiration' line in the chart is the front-month expiry — the back leg still has time value.",
+        "Sell a near-term option and buy a longer-dated one at the same strike. The front decays faster, so the position often performs best when the stock is near the strike at front expiry. The 'expiration' line in the chart is the front-month expiry — the back leg still has time value.",
       ]},
       { h: "Term structure", p: [
         "Calendars are long vega: rising back-month IV helps. They're hurt when front-month IV spikes relative to back (backwardation), common before events. Diagonals use different strikes to add directional bias.",
@@ -270,13 +270,13 @@ export const LESSONS: Lesson[] = [
     sections: [
       { h: "The model", p: [
         "Black-Scholes prices a European option from five inputs: spot, strike, time, rate, and volatility. Four are observable; volatility is solved from market prices — that's implied volatility.",
-        "IV is the market's forecast of annualized standard deviation. 30% IV on a $100 stock implies a one-standard-deviation move of ≈ $30 over a year, or ≈ 100 × 0.30 × √(30/365) ≈ $8.60 over 30 days.",
+        "IV is the volatility input implied by option prices under the model, not a literal forecast. As a model-based scale, 30% IV on a $100 stock corresponds to a one-standard-deviation move of roughly $30 over a year, or ≈ 100 × 0.30 × √(30/365) ≈ $8.60 over 30 days.",
       ]},
       { h: "Skew and smile", p: [
         "In practice IV differs by strike: equity OTM puts trade richer (put skew) because of crash demand. This means real strategies are priced off different IVs per leg — edit the IV column to model skew.",
       ]},
     ],
-    example: { title: "Expected 30-day move", lines: ["Spot 100, IV 30%: σ₃₀ ≈ 100 × 0.30 × √(30/365) ≈ $8.60.", "~68% chance of finishing between $91.40 and $108.60 (lognormal approx)."] },
+    example: { title: "Model-based 30-day move", lines: ["Spot 100, IV 30%: σ₃₀ ≈ 100 × 0.30 × √(30/365) ≈ $8.60.", "Under the Black-Scholes assumptions, this is a rough one-standard-deviation scale, not a guaranteed 68% price interval."] },
     tryIt: ["Change DTE to 10 then 180 and compare vega.", "Bump IV in the leg table from 30 to 50 — see the price column."],
     takeaways: ["IV is an output of price, not an input you know.", "Vega grows with time to expiry.", "Skew means different IV per strike."],
     quiz: { q: "IV of 20% on a $200 stock implies roughly what 1σ annual move?", options: ["$20", "$40", "$4", "$200"], answer: 1, explain: "200 × 0.20 = $40." },
@@ -315,13 +315,13 @@ export const LESSONS: Lesson[] = [
         "Long 2 ATM calls (~+107 delta) and short 107 shares gives near-zero delta. The position no longer cares about small moves — what's left is gamma, theta and vega.",
       ]},
       { h: "Gamma scalping", p: [
-        "As the stock rises, delta becomes positive: sell shares. As it falls, delta becomes negative: buy shares. Each rebalance locks in a small profit. If realized volatility exceeds the implied volatility you paid, scalps beat theta decay.",
-        "Short gamma traders do the reverse and profit when realized vol is below implied.",
+        "As the stock rises, delta becomes positive: sell shares. As it falls, delta becomes negative: buy shares. Rebalancing realizes gains or losses; it does not guarantee a profit. Long gamma can overcome theta when realized volatility exceeds the implied volatility paid, after hedging costs and timing.",
+        "Short gamma traders hedge in the opposite direction and can benefit when realized volatility is below implied, subject to jump and transaction-cost risk.",
       ]},
     ],
-    example: { title: "Daily rebalancing", lines: ["Day theta: −$12. Stock oscillates ±$2 daily.", "Scalp P&L ≈ ½ × Γ × ΔS² × 100 ≈ ½ × 9.2 × 4 ≈ $18/day → net positive."] },
+    example: { title: "Daily rebalancing", lines: ["Day theta: −$12. Stock oscillates ±$2 daily.", "With position gamma already expressed in dollars per $1 move²: scalp P&L ≈ ½ × Γ × ΔS² ≈ ½ × 9.2 × 4 ≈ $18/day before costs."] },
     tryIt: ["Δ view: delta is ~0 at spot, curve slopes up — that's long gamma.", "Switch to P&L: the 'today' curve is a smile — profit on moves either way."],
-    takeaways: ["Hedged options = pure volatility bet.", "Long gamma profits if realized > implied.", "P&L ≈ ½ Γ ΔS² − Θ."],
+    takeaways: ["A delta-hedged option position is mainly exposed to gamma, theta, vega, and jumps.", "Long gamma can profit if realized volatility exceeds implied after costs.", "For signed Greeks: ΔV ≈ ΔΔS + ½Γ(ΔS)² + ΘΔt + νΔσ."],
     quiz: { q: "A delta-hedged long option position profits primarily when…", options: ["The stock trends up", "Realized vol exceeds implied vol", "IV falls", "Time passes"], answer: 1, explain: "Gamma scalping gains outpace theta when the stock moves more than the option price implied." },
   },
   {
@@ -333,15 +333,15 @@ export const LESSONS: Lesson[] = [
     lab: { title: "Synthetic long stock", build: (S) => [leg("call", 1, Math.round(S)), leg("put", -1, Math.round(S))] },
     sections: [
       { h: "Parity", p: [
-        "C − P = S − K·e^(−rT). A long call plus a short put at the same strike and expiry behaves exactly like long stock (minus financing). This relationship ties the whole options chain together.",
+        "C − P = S − K·e^(−rT). A long call plus a short put at the same strike and expiry is a synthetic forward: it matches stock exposure after accounting for the present value of the strike. This relationship ties the whole options chain together.",
       ]},
       { h: "Synthetic toolbox", p: [
-        "Synthetic long stock = +C −P. Synthetic long call = +stock +P. Synthetic short put = +stock −C (covered call). Conversions and reversals exploit parity violations — rare for retail, but essential for understanding.",
+        "At expiry, +C −P pays S−K; adding a zero-coupon bond paying K makes synthetic stock. Likewise, stock + put − a bond paying K replicates a call. A covered call has a short-put-like payoff only after including the same cash financing. Conversions and reversals exploit parity violations — rare for retail, but essential for understanding.",
       ]},
     ],
     example: { title: "Check parity", lines: ["S = 100, K = 100, r = 4%, T = 30d.", "C − P should ≈ 100 − 100·e^(−0.04×30/365) ≈ $0.33."] },
-    tryIt: ["Δ view: delta is a flat 100 — identical to 100 shares.", "Add 'Sell 100 stock' to see a fully flat conversion."],
-    takeaways: ["Every position has synthetic equivalents.", "Parity links calls, puts, stock and rates.", "Use synthetics to find the cheapest structure."],
+    tryIt: ["Δ view: call minus put has a delta close to 100 shares.", "Compare its P&L with 100 shares and observe the small financing difference over time."],
+    takeaways: ["Every position has synthetic equivalents when financing is included.", "Parity links calls, puts, stock, cash and rates.", "Use synthetics to compare equivalent exposures and carrying costs."],
     quiz: { q: "Long stock + long put is synthetically…", options: ["A long call", "A short call", "A short put", "A straddle"], answer: 0, explain: "Protective put = synthetic long call at the same strike." },
   },
   {

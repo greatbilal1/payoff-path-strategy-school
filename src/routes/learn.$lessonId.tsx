@@ -109,7 +109,7 @@ function LessonPage() {
             {isDone ? "✓ Completed" : "Mark complete"}
           </button>
           {next ? (
-            <Link to="/learn/$lessonId" params={{ lessonId: next.id }} onClick={() => toggle(lesson.id)} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground">Next<ArrowRight className="h-4 w-4" /></Link>
+            <Link to="/learn/$lessonId" params={{ lessonId: next.id }} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground">Next<ArrowRight className="h-4 w-4" /></Link>
           ) : (
             <Link to="/sandbox" className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground"><FlaskConical className="h-4 w-4" />Sandbox</Link>
           )}
